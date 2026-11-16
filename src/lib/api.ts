@@ -118,15 +118,15 @@ export interface ProfileResponse {
 
 export const api = {
   // Auth
-  verifyMagic: (token: string) =>
-    apiFetch<{
-      jwt: string;
-      user: { member_id: number; nama: string; role: string };
-    }>('/api/auth/verify-magic', {
-      method: 'POST',
-      body: JSON.stringify({ token }),
-      auth: false,
-    }),
+verifyMagic: (token: string) =>
+  apiFetch<{
+    jwt: string;
+    user: { member_id: number; nama: string; role: string };
+  }>('/api/auth/verify-magic', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+    auth: false,
+  }),
 
   // Public (butuh JWT)
   validateToken: (token: string) =>
