@@ -2,10 +2,11 @@
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle2 } from 'lucide-react';
+import { Suspense } from 'react';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 import { formatWitaDate, formatWitaTime } from '@/lib/time-client';
 
-export default function ResultPage() {
+function ResultContent() {
   const params = useSearchParams();
   const router = useRouter();
 
@@ -32,21 +33,11 @@ export default function ResultPage() {
         <hr className="border-gray-100" />
         <Row label="Kegiatan" value={kegiatan} />
         {tanggal && <Row label="Tanggal" value={formatWitaDate(tanggal)} />}
-        {waktu && (
-          <Row
-            label="Waktu"
-            value={formatWitaTime(waktu)}
-            highlight
-          />
-        )}
+        {waktu && <Row label="Waktu" value={formatWitaTime(waktu)} highlight />}
         <Row
           label="Status"
           value={status}
-          badge={
-            status === 'HADIR'
-              ? 'bg-green-100 text-green-700'
-              : 'bg-yellow-100 text-yellow-700'
-          }
+          badge={status === 'HADIR' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}
         />
       </div>
 
@@ -69,10 +60,7 @@ export default function ResultPage() {
 }
 
 function Row({
-  label,
-  value,
-  highlight,
-  badge,
+  label, value, highlight, badge,
 }: {
   label: string;
   value: string;
@@ -83,18 +71,22 @@ function Row({
     <div className="flex justify-between items-center">
       <span className="text-sm text-gray-500">{label}</span>
       {badge ? (
-        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${badge}`}>
-          {value}
-        </span>
+        <span className={`text-xs px-2 py-1 rounded-full font-semibold ${badge}`}>{value}</span>
       ) : (
-        <span
-          className={`text-sm font-semibold ${
-            highlight ? 'text-pmr-red' : 'text-gray-900'
-          }`}
-        >
-          {value}
-        </span>
+        <span className={`text-sm font-semibold ${highlight ? 'text-pmr-red' : 'text-gray-900'}`}>{value}</span>
       )}
     </div>
+  );
+}
+
+export default function ResultPage() {
+  return (
+    <Suspense fallback={
+      <div className="text-center py-12">
+        <Loader2 className="mx-auto text-pmr-red animate-spin" size={32} />
+      </div>
+    }>
+      <ResultContent />
+    </Suspense>
   );
 }

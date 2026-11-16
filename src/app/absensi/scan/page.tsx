@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
@@ -9,13 +9,12 @@ import { api, ValidateTokenResult, ApiError } from '@/lib/api';
 import { isLoggedIn } from '@/lib/auth';
 import { formatWitaDate } from '@/lib/time-client';
 
-// Dynamic import supaya tidak SSR (akses kamera)
 const QRScanner = dynamic(
   () => import('@/components/absensi/QRScanner').then((m) => m.QRScanner),
   { ssr: false }
 );
 
-export default function ScanPage() {
+function ScanContent() {
   const router = useRouter();
   const params = useSearchParams();
   const tokenFromUrl = params.get('token');
@@ -32,7 +31,6 @@ export default function ScanPage() {
     }
   }, [router]);
 
-  // Kalau token dari URL, langsung validasi
   useEffect(() => {
     if (tokenFromUrl) handleToken(tokenFromUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -59,7 +57,6 @@ export default function ScanPage() {
     try {
       const result = await api.attend(token);
       toast.success('Absensi berhasil!');
-      // Kirim hasil via query params ke halaman result
       const qs = new URLSearchParams({
         nama: result.nama,
         kelas: result.kelas,
@@ -92,9 +89,7 @@ export default function ScanPage() {
           <QRScanner onScan={handleToken} />
           <div className="text-center text-xs text-gray-400">atau</div>
           <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-            <label className="text-xs text-gray-500 block mb-2">
-              Masukkan token manual
-            </label>
+            <label className="text-xs text-gray-500 block mb-2">Masukkan token manual</label>
             <div className="flex gap-2">
               <input
                 type="text"
@@ -126,22 +121,9 @@ export default function ScanPage() {
           <CheckCircle2 className="text-green-500 mb-2" size={28} />
           <h3 className="font-bold text-gray-900">QR Code Valid</h3>
           <div className="mt-3 space-y-1 text-sm">
-            <p>
-              <span className="text-gray-500">Kegiatan:</span>{' '}
-              <span className="font-semibold">{sessionInfo.nama_kegiatan}</span>
-            </p>
-            <p>
-              <span className="text-gray-500">Tanggal:</span>{' '}
-              <span className="font-semibold">
-                {formatWitaDate(sessionInfo.tanggal_kegiatan)}
-              </span>
-            </p>
-            {sessionInfo.lokasi && (
-              <p>
-                <span className="text-gray-500">Lokasi:</span>{' '}
-                <span className="font-semibold">{sessionInfo.lokasi}</span>
-              </p>
-            )}
+            <p><span className="text-gray-500">Kegiatan:</span> <span className="font-semibold">{sessionInfo.nama_kegiatan}</span></p>
+            <p><span className="text-gray-500">Tanggal:</span> <span className="font-semibold">{formatWitaDate(sessionInfo.tanggal_kegiatan)}</span></p>
+            {sessionInfo.lokasi && <p><span className="text-gray-500">Lokasi:</span> <span className="font-semibold">{sessionInfo.lokasi}</span></p>}
           </div>
           <button
             onClick={handleAttend}
@@ -158,11 +140,7 @@ export default function ScanPage() {
           <h3 className="font-bold text-red-900">Gagal</h3>
           <p className="text-sm text-red-700 mt-1">{errorMsg}</p>
           <button
-            onClick={() => {
-              setStatus('scan');
-              setToken(null);
-              setErrorMsg('');
-            }}
+            onClick={() => { setStatus('scan'); setToken(null); setErrorMsg(''); }}
             className="mt-3 text-sm text-red-700 underline"
           >
             Coba lagi
@@ -170,5 +148,17 @@ export default function ScanPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ScanPage() {
+  return (
+    <Suspense fallback={
+      <div className="text-center py-12">
+        <Loader2 className="mx-auto text-pmr-red animate-spin" size={32} />
+      </div>
+    }>
+      <ScanContent />
+    </Suspense>
   );
 }
