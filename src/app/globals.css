@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --pmr-red: #D32F2F;
+  --pmr-red-dark: #B71C1C;
+}
+
+body {
+  @apply bg-white text-gray-900 antialiased;
+}
