@@ -16,21 +16,27 @@ export function QRScanner({ onScan }: Props) {
   const startScanner = async () => {
     setError(null);
     try {
+      // Pastikan instance dibuat
       if (!scannerRef.current) {
         scannerRef.current = new Html5Qrcode('qr-reader');
       }
 
+      // Mulai scan
       await scannerRef.current.start(
         { facingMode: 'environment' },
         { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
           // Hentikan scan setelah dapat 1 QR
-          scannerRef.current?.stop().then(() => {
-            setIsScanning(false);
-            onScan(decodedText);
-          });
+          if (scannerRef.current) {
+            scannerRef.current.stop()
+              .then(() => {
+                setIsScanning(false);
+                onScan(decodedText);
+              })
+              .catch((e) => console.error('Gagal stop setelah scan:', e));
+          }
         },
-        () => {} // ignore error per frame
+        () => { /* ignore error per frame */ }
       );
       setIsScanning(true);
     } catch (err: any) {
@@ -40,19 +46,28 @@ export function QRScanner({ onScan }: Props) {
   };
 
   const stopScanner = async () => {
-    if (scannerRef.current && isScanning) {
-      await scannerRef.current.stop();
+    // Cek dulu apakah scanner benar-benar sedang jalan
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      try {
+        await scannerRef.current.stop();
+        setIsScanning(false);
+      } catch (err: any) {
+        console.error('Gagal stop scanner:', err);
+      }
+    } else {
+      // Kalau tidak jalan, paksa set state ke false
       setIsScanning(false);
     }
   };
 
+  // Cleanup saat komponen di-unmount
   useEffect(() => {
     return () => {
-      if (scannerRef.current && isScanning) {
-        scannerRef.current.stop().catch(console.error);
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch((e) => console.error('Cleanup error:', e));
       }
     };
-  }, [isScanning]);
+  }, []);
 
   return (
     <div className="space-y-3">
