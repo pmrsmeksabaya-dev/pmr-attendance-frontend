@@ -13,24 +13,25 @@ function LoginContent() {
   const tokenFromUrl = params.get('token');
 
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'input'>('loading');
-  const [message, setMessage] = useState('Memverifikasi token...');
+  const [message, setMessage] = useState('Memverifikasi kode...');
   const [manualToken, setManualToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fungsi untuk memproses token
+  // Fungsi untuk memproses token (!login) maupun kode (!otp)
   const processToken = async (token: string) => {
-    if (!token) {
+    const cleanToken = token.trim();
+    if (!cleanToken) {
       setStatus('error');
-      setMessage('Token kosong.');
+      setMessage('Kode login atau OTP tidak boleh kosong.');
       return;
     }
 
     setStatus('loading');
-    setMessage('Memverifikasi token...');
+    setMessage('Memverifikasi kode...');
     setIsSubmitting(true);
 
     try {
-      const res = await api.verifyMagic(token);
+      const res = await api.verifyMagic(cleanToken);
       saveSession(res.jwt, {
         member_id: res.user.member_id,
         nama: res.user.nama,
@@ -42,7 +43,11 @@ function LoginContent() {
       setTimeout(() => router.push('/absensi'), 1500);
     } catch (e: any) {
       setStatus('error');
-      setMessage(e instanceof ApiError ? e.message : 'Gagal verifikasi. Minta link baru via bot.');
+      setMessage(
+        e instanceof ApiError
+          ? e.message
+          : 'Gagal verifikasi. Minta link atau kode baru via bot.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -53,7 +58,6 @@ function LoginContent() {
     if (tokenFromUrl) {
       processToken(tokenFromUrl);
     } else {
-      // Jika tidak ada token di URL, tampilkan form input manual
       setStatus('input');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,7 +102,7 @@ function LoginContent() {
             }}
             className="mt-6 text-pmr-red hover:underline text-sm font-semibold"
           >
-            Coba masukkan token manual
+            Coba masukkan kode manual
           </button>
         </>
       )}
@@ -110,23 +114,24 @@ function LoginContent() {
           </div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Masuk ke Absensi</h2>
           <p className="text-sm text-gray-500 mb-6">
-            Silakan paste token login yang Anda terima dari Bot WhatsApp di bawah ini.
+            Masukkan 8 karakter kode login atau OTP yang Anda terima dari Bot WhatsApp PMR.
           </p>
 
           <form onSubmit={handleManualSubmit} className="space-y-4">
             <div>
               <input
                 type="text"
+                maxLength={8}
                 value={manualToken}
                 onChange={(e) => setManualToken(e.target.value)}
-                placeholder="Paste token di sini..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pmr-red focus:border-pmr-red outline-none text-sm font-mono"
+                placeholder="Contoh: uqFe1dME"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pmr-red focus:border-pmr-red outline-none text-center text-lg tracking-widest font-mono"
                 autoFocus
               />
             </div>
             <button
               type="submit"
-              disabled={isSubmitting || !manualToken.trim()}
+              disabled={isSubmitting || manualToken.trim().length < 8}
               className="w-full bg-pmr-red text-white py-3 rounded-xl font-semibold hover:bg-pmr-red-dark disabled:opacity-50 disabled:cursor-not-allowed transition"
             >
               {isSubmitting ? 'Memverifikasi...' : 'Masuk'}
@@ -134,12 +139,15 @@ function LoginContent() {
           </form>
 
           <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-900 text-left">
-            <p className="font-semibold mb-2">📖 Cara Mendapatkan Token:</p>
+            <p className="font-semibold mb-2">📖 Cara Mendapatkan Kode:</p>
             <ol className="list-decimal list-inside space-y-1 text-xs">
               <li>Buka WhatsApp Anda</li>
-              <li>Kirim pesan <code className="bg-blue-100 px-1 rounded">!login</code> ke Bot PMR</li>
-              <li>Copy token (kode panjang) yang dibalas bot</li>
-              <li>Paste di kolom di atas</li>
+              <li>
+                Kirim pesan <code className="bg-blue-100 px-1 rounded">!login</code> atau{' '}
+                <code className="bg-blue-100 px-1 rounded">!otp</code> ke Bot PMR
+              </li>
+              <li>Salin 8 karakter kode yang dibalas bot</li>
+              <li>Tempel (paste) di kolom di atas</li>
             </ol>
           </div>
         </div>
@@ -150,11 +158,13 @@ function LoginContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="flex justify-center py-12">
-        <Loader2 className="animate-spin text-pmr-red" size={32} />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-12">
+          <Loader2 className="animate-spin text-pmr-red" size={32} />
+        </div>
+      }
+    >
       <LoginContent />
     </Suspense>
   );
