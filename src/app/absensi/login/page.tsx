@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Loader2, CheckCircle2, XCircle, KeyRound } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { saveSession } from '@/lib/auth';
 
@@ -72,29 +72,29 @@ function LoginContent() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+    <div className="flex flex-col items-center justify-center min-h-[70vh] bg-white text-gray-900 text-center">
       {status === 'loading' && (
-        <>
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col items-center">
           <Loader2 className="w-12 h-12 text-pmr-red animate-spin mb-4" />
           <h2 className="text-xl font-bold text-gray-900">Memproses...</h2>
-          <p className="text-gray-600 mt-2">{message}</p>
-        </>
+          <p className="text-gray-600 mt-2 text-sm">{message}</p>
+        </div>
       )}
 
       {status === 'success' && (
-        <>
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col items-center">
           <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
           <h2 className="text-2xl font-bold text-gray-900">Login Berhasil</h2>
           <p className="text-gray-600 mt-2">{message}</p>
           <p className="text-sm text-gray-400 mt-4">Mengalihkan ke beranda...</p>
-        </>
+        </div>
       )}
 
       {status === 'error' && (
-        <>
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-8 flex flex-col items-center">
           <XCircle className="w-16 h-16 text-red-500 mb-4" />
           <h2 className="text-2xl font-bold text-gray-900">Login Gagal</h2>
-          <p className="text-gray-600 mt-2 max-w-md">{message}</p>
+          <p className="text-gray-600 mt-2 text-sm max-w-md">{message}</p>
           <button
             onClick={() => {
               setStatus('input');
@@ -104,15 +104,30 @@ function LoginContent() {
           >
             Coba masukkan kode manual
           </button>
-        </>
+        </div>
       )}
 
       {status === 'input' && (
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-            <KeyRound className="w-8 h-8 text-pmr-red" />
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8">
+          {/* Logo SMKN 1 Pringgabaya & PMR Wira */}
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <img
+              src="/logo-smk.png"
+              alt="Logo SMKN 1 Pringgabaya"
+              className="w-14 h-14 object-contain"
+            />
+            <div className="h-10 w-[1px] bg-gray-200" />
+            <img
+              src="/logo-pmr.png"
+              alt="Logo PMR Wira"
+              className="w-14 h-14 object-contain"
+            />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Masuk ke Absensi</h2>
+
+          <h2 className="text-xl font-bold text-gray-900 mb-1">PMR Wira Smeksabaya</h2>
+          <p className="text-xs font-semibold text-pmr-red uppercase tracking-wider mb-4">
+            Sistem Absensi Digital
+          </p>
           <p className="text-sm text-gray-500 mb-6">
             Masukkan 8 karakter kode login atau OTP yang Anda terima dari Bot WhatsApp PMR.
           </p>
@@ -125,7 +140,7 @@ function LoginContent() {
                 value={manualToken}
                 onChange={(e) => setManualToken(e.target.value)}
                 placeholder="Contoh: uqFe1dME"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pmr-red focus:border-pmr-red outline-none text-center text-lg tracking-widest font-mono"
+                className="w-full px-4 py-3 bg-white text-gray-900 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pmr-red focus:border-pmr-red outline-none text-center text-lg tracking-widest font-mono"
                 autoFocus
               />
             </div>
@@ -160,7 +175,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex justify-center py-12">
+        <div className="flex items-center justify-center min-h-[70vh] bg-white">
           <Loader2 className="animate-spin text-pmr-red" size={32} />
         </div>
       }
