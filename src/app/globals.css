@@ -5,8 +5,57 @@
 :root {
   --pmr-red: #D32F2F;
   --pmr-red-dark: #B71C1C;
+  --pmr-red-soft: #FFEBEE;
 }
 
-body {
-  @apply bg-white text-gray-900 antialiased;
+@layer base {
+  html {
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+
+  code,
+  pre,
+  .font-mono {
+    font-family: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+  }
+}
+
+/* Custom Scrollbar Minimalis */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.45);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(211, 47, 47, 0.65);
+}
+
+/* Perapian Tampilan Kamera Html5Qrcode */
+#qr-reader video {
+  width: 100% !important;
+  height: auto !important;
+  border-radius: 0.75rem;
+  object-fit: cover;
+}
+
+#qr-reader__scan_region {
+  background: transparent !important;
+}
+
+#qr-reader__dashboard {
+  display: none !important;
 }
