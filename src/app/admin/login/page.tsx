@@ -1,17 +1,29 @@
 'use client';
 
 import { useEffect, useState, useRef, Suspense } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Loader2,
   ShieldAlert,
+  ShieldCheck,
   KeyRound,
   ArrowRight,
   ClipboardPaste,
+  UserCheck,
+  ClipboardList,
 } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { saveSession, getUser, isLoggedIn } from '@/lib/auth';
+import { OrgLogos } from '@/components/OrgLogos';
+
+function extractToken(raw: string): string {
+  const trimmed = raw.trim();
+  const urlMatch = trimmed.match(/[?&]token=([a-zA-Z0-9._-]+)/);
+  if (urlMatch?.[1]) return urlMatch[1];
+  return trimmed;
+}
 
 function AdminLoginContent() {
   const router = useRouter();
@@ -19,22 +31,22 @@ function AdminLoginContent() {
   const tokenFromUrl = params.get('token');
 
   const [token, setToken] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(tokenFromUrl));
   const processedRef = useRef(false);
 
   const handleVerify = async (rawToken: string) => {
-    const clean = rawToken.trim();
+    const clean = extractToken(rawToken);
     if (!clean) return;
 
     setLoading(true);
     try {
-      // Kirim portal: 'admin' agar tervalidasi khusus token/OTP dari !loginadmin
-      const res = await (api.verifyMagic as any)(clean, 'admin');
+      // Validasi khusus token/OTP dari perintah !loginadmin
+      const res = await api.verifyMagic(clean, 'admin');
       const role = (res.user.role || '').toLowerCase();
 
       if (role !== 'admin' && role !== 'owner') {
         toast.error(
-          'Akses ditolak. Akun Anda bukan Admin/Owner.'
+          `Akses ditolak. Akun Anda berstatus "${res.user.role.toUpperCase()}", bukan Admin atau Owner.`
         );
         router.replace(role === 'pengurus' ? '/pengurus' : '/absensi');
         return;
@@ -46,7 +58,7 @@ function AdminLoginContent() {
         role: res.user.role as any,
       });
 
-      toast.success(`Selamat datang di Panel Admin, ${res.user.nama}`);
+      toast.success(`Selamat datang di Panel Admin, ${res.user.nama}!`);
       router.replace('/admin');
     } catch (e: any) {
       toast.error(
@@ -54,14 +66,18 @@ function AdminLoginContent() {
           ? e.message
           : e?.message || 'Kode login tidak valid, salah portal, atau kedaluwarsa.'
       );
-    } finally {
       setLoading(false);
+      if (tokenFromUrl) {
+        router.replace('/admin/login');
+      }
     }
   };
 
   useEffect(() => {
-    if (tokenFromUrl && !processedRef.current) {
+    if (tokenFromUrl) {
+      if (processedRef.current) return;
       processedRef.current = true;
+      setToken(extractToken(tokenFromUrl));
       handleVerify(tokenFromUrl);
       return;
     }
@@ -80,56 +96,88 @@ function AdminLoginContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokenFromUrl, router]);
 
-  const handlePaste = async () => {
-    try {
-      const clip = await navigator.clipboard.readText();
-      if (clip.trim()) {
-        // Jika user menyalin seluruh URL magic link, ekstrak parameter ?token= secara otomatis
-        const text = clip.trim();
-        const urlMatch = text.match(/[?&]token=([a-zA-Z0-9_-]+)/);
-        const extracted = urlMatch ? urlMatch[1] : text.slice(0, 12);
-        setToken(extracted);
-      }
-    } catch {
-      toast.error('Gagal membaca clipboard');
+  const handleInputChange = (value: string) => {
+    const extracted = extractToken(value);
+    setToken(extracted);
+
+    if (value.includes('token=') && extracted.length >= 6) {
+      handleVerify(extracted);
     }
   };
 
+  const handlePaste = async () => {
+    try {
+      const clip = await navigator.clipboard.readText();
+      if (!clip.trim()) {
+        toast.error('Clipboard kosong.');
+        return;
+      }
+      const extracted = extractToken(clip);
+      setToken(extracted);
+      toast.success('Kode ditempel dari clipboard.');
+
+      if (extracted.length >= 6) {
+        handleVerify(extracted);
+      }
+    } catch {
+      toast.error('Izin clipboard ditolak. Tempel manual menggunakan Ctrl+V / Tekan Lama.');
+    }
+  };
+
+  if (tokenFromUrl && loading) {
+    return (
+      <div className="min-h-dvh bg-slate-50 dark:bg-[#230709] flex flex-col items-center justify-center gap-3 p-4">
+        <Loader2 className="animate-spin text-[#D32F2F]" size={36} />
+        <p className="text-sm font-bold text-slate-700 dark:text-red-100">
+          Memverifikasi Magic Link Admin Control Portal...
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#230709] flex items-center justify-center p-4">
+    <div className="min-h-dvh bg-slate-50 dark:bg-[#230709] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white dark:bg-[#330C0F] rounded-3xl shadow-xl border border-slate-200/80 dark:border-red-900/60 overflow-hidden">
-        <div className="bg-gradient-to-r from-[#D32F2F] to-red-800 p-6 text-center text-white">
-          <div className="w-14 h-14 bg-white rounded-full p-2 mx-auto mb-3 shadow-md flex items-center justify-center">
-            <img
-              src="/logo-pmr.png"
-              alt="Logo PMR"
-              className="w-full h-full object-contain"
-            />
+        {/* Header dengan Tiga Logo Background Putih Permanen */}
+        <div className="bg-gradient-to-r from-[#D32F2F] via-red-700 to-red-900 p-6 text-center text-white">
+          <div className="mb-3">
+            <OrgLogos size="lg" shape="circle" />
           </div>
           <h1 className="text-xl font-extrabold tracking-tight">
             Admin Control Portal
           </h1>
-          <p className="text-xs text-white/80 mt-1">
-            PMR Wira SMKN 1 Pringgabaya
+          <p className="text-xs text-white/85 mt-1">
+            Panel Manajemen &amp; Pembina — SMKN 1 Pringgabaya
           </p>
         </div>
 
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            handleVerify(token);
+            if (token.trim().length >= 6 && !loading) {
+              handleVerify(token);
+            }
           }}
           className="p-6 sm:p-8 space-y-4"
         >
-          <div className="flex items-start gap-2.5 text-xs font-medium text-[#D32F2F] dark:text-red-200 bg-red-50 dark:bg-red-950/60 border border-red-200/70 dark:border-red-800/60 px-3.5 py-2.5 rounded-xl leading-relaxed">
+          <div className="flex items-start gap-2.5 text-xs font-medium text-slate-700 dark:text-red-100/90 bg-red-50/80 dark:bg-red-950/60 border border-red-200/70 dark:border-red-800/60 px-3.5 py-3 rounded-2xl leading-relaxed">
             <ShieldAlert size={16} className="shrink-0 mt-0.5 text-[#D32F2F]" />
             <span>
-              Kirim <b className="font-mono">!loginadmin</b> ke Bot WhatsApp PMR untuk mendapatkan <b>Magic Link</b> atau <b>Kode OTP 6-Digit</b> (khusus Admin &amp; Owner).
+              Kirim{' '}
+              <code className="px-1.5 py-0.5 rounded-md bg-white dark:bg-[#230709] border border-red-200/60 dark:border-red-800/60 font-mono font-extrabold text-[#D32F2F] dark:text-red-300">
+                !loginadmin
+              </code>{' '}
+              melalui <b>Chat Pribadi (Japri)</b> ke Bot WhatsApp PMR untuk
+              mendapatkan <b>Magic Link</b> atau <b>Kode OTP 6-Digit</b> (khusus
+              Admin &amp; Owner).
             </span>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-red-100 mb-1.5">
+            <label
+              htmlFor="admin-token-input"
+              className="block text-xs font-bold text-slate-700 dark:text-red-100 mb-1.5"
+            >
               Kode OTP (6 Digit) / Token Magic Link
             </label>
             <div className="relative">
@@ -138,21 +186,23 @@ function AdminLoginContent() {
                 className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <input
+                id="admin-token-input"
                 type="text"
-                maxLength={12}
+                autoComplete="one-time-code"
+                required
                 value={token}
-                onChange={(e) => setToken(e.target.value)}
-                placeholder="Contoh: 482910"
-                className="w-full pl-10 pr-20 py-3 bg-slate-50 dark:bg-red-950/50 border border-slate-200 dark:border-red-900/70 rounded-xl font-mono text-base tracking-widest text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#D32F2F]"
+                onChange={(e) => handleInputChange(e.target.value)}
+                placeholder="482910 / tempel link"
+                className="w-full pl-10 pr-20 py-3 bg-slate-50 dark:bg-red-950/50 border border-slate-200 dark:border-red-900/70 rounded-xl font-mono text-sm sm:text-base font-bold tracking-wider text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#D32F2F]"
                 autoFocus
               />
               <button
                 type="button"
                 onClick={handlePaste}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 text-[#D32F2F] text-[11px] font-bold hover:bg-red-100"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-50 dark:bg-red-950 text-[#D32F2F] dark:text-red-200 text-[11px] font-bold hover:bg-red-100 dark:hover:bg-red-900 transition"
               >
                 <ClipboardPaste size={12} />
-                Paste
+                <span>Paste</span>
               </button>
             </div>
           </div>
@@ -160,7 +210,7 @@ function AdminLoginContent() {
           <button
             type="submit"
             disabled={loading || token.trim().length < 6}
-            className="w-full inline-flex items-center justify-center gap-2 bg-[#D32F2F] hover:bg-red-700 text-white font-bold py-3.5 rounded-xl text-sm shadow-md shadow-red-600/20 disabled:opacity-50 transition-all"
+            className="w-full inline-flex items-center justify-center gap-2 bg-[#D32F2F] hover:bg-red-700 text-white font-bold py-3.5 rounded-xl text-xs sm:text-sm shadow-md shadow-red-600/20 disabled:opacity-50 transition-all"
           >
             {loading ? (
               <>
@@ -174,6 +224,31 @@ function AdminLoginContent() {
               </>
             )}
           </button>
+
+          {/* Info Keamanan */}
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-500 dark:text-red-200/60 pt-1">
+            <ShieldCheck size={14} className="text-emerald-600 shrink-0" />
+            <span>Akses terbatas &amp; tercatat di Audit Log sistem.</span>
+          </div>
+
+          {/* Tautan Pindah Portal */}
+          <div className="pt-3 border-t border-slate-100 dark:border-red-900/50 flex items-center justify-between text-[11px] font-semibold text-slate-500 dark:text-red-200/75">
+            <Link
+              href="/absensi/login"
+              className="inline-flex items-center gap-1 hover:text-[#D32F2F] transition"
+            >
+              <UserCheck size={13} />
+              <span>Login Anggota</span>
+            </Link>
+
+            <Link
+              href="/pengurus/login"
+              className="inline-flex items-center gap-1 hover:text-[#D32F2F] transition"
+            >
+              <ClipboardList size={13} />
+              <span>Portal Pengurus</span>
+            </Link>
+          </div>
         </form>
       </div>
     </div>
@@ -184,7 +259,7 @@ export default function AdminLoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center">
+        <div className="min-h-dvh bg-slate-50 dark:bg-[#230709] flex items-center justify-center">
           <Loader2 className="animate-spin text-[#D32F2F]" size={32} />
         </div>
       }

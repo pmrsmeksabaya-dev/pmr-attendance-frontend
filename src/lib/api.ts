@@ -34,10 +34,18 @@ export async function apiFetch<T = unknown>(
     if (jwt) finalHeaders['Authorization'] = `Bearer ${jwt}`;
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: finalHeaders,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers: finalHeaders,
+    });
+  } catch {
+    throw new ApiError(
+      'Tidak dapat terhubung ke server API. Pastikan backend PMR aktif.',
+      503
+    );
+  }
 
   // Kalau 401 → session expired (kecuali saat sedang memanggil endpoint verify-magic)
   if (res.status === 401 && !path.includes('/api/auth/verify-magic')) {
@@ -126,6 +134,7 @@ export interface HistoryResponse {
 
 export interface ProfileResponse {
   id: number;
+  nis?: string | null;
   nama: string;
   kelas: string;
   jurusan: string;
@@ -133,12 +142,46 @@ export interface ProfileResponse {
   nomor_whatsapp: string;
   jabatan: string | null;
   angkatan: string;
+  role?: string;
   status_anggota: string;
+}
+
+export interface IzinRequestItem {
+  id: number;
+  member_id: number;
+  session_id?: number | null;
+  tanggal: string;
+  tanggal_izin: string;
+  jenis: 'IZIN' | 'SAKIT' | string;
+  alasan: string;
+  bukti_url?: string | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | string;
+  catatan_pengurus?: string | null;
+  verified_by?: number | null;
+  created_at: string;
+  updated_at?: string;
+  members?: {
+    id?: number;
+    nis?: string | null;
+    nama: string;
+    kelas: string;
+    jurusan?: string | null;
+  };
+}
+
+export interface CreateIzinPayload {
+  tanggal_izin?: string;
+  tanggal?: string;
+  jenis: 'IZIN' | 'SAKIT' | string;
+  alasan: string;
+  session_id?: number | null;
+  bukti_url?: string | null;
 }
 
 export interface AdminMember {
   id: number;
   nis?: string | null;
+  nisn?: string | null;
   nama: string;
   kelas: string;
   jurusan: string;
@@ -148,13 +191,23 @@ export interface AdminMember {
   jid?: string | null;
   jabatan?: string | null;
   angkatan: string;
+  role?: 'anggota' | 'pengurus' | 'admin' | 'owner' | string;
   email?: string | null;
+  tempat_lahir?: string | null;
+  tanggal_lahir?: string | null;
+  golongan_darah?: string | null;
+  tingkatan_pmr?: string | null;
+  alergi?: string | null;
+  nama_orang_tua?: string | null;
+  no_orang_tua?: string | null;
+  persetujuan_orang_tua?: boolean;
   keterangan?: string | null;
   status_anggota?: string;
 }
 
 export interface CreateMemberPayload {
   nis: string;
+  nisn?: string;
   nama: string;
   kelas: string;
   jurusan: string;
@@ -162,8 +215,17 @@ export interface CreateMemberPayload {
   nomor_whatsapp: string;
   jabatan?: string;
   angkatan: string;
+  role?: 'anggota' | 'pengurus' | 'admin' | 'owner' | string;
   email?: string;
   password?: string;
+  tempat_lahir?: string;
+  tanggal_lahir?: string;
+  golongan_darah?: string;
+  tingkatan_pmr?: string;
+  alergi?: string;
+  nama_orang_tua?: string;
+  no_orang_tua?: string;
+  persetujuan_orang_tua?: boolean;
   keterangan?: string;
 }
 
@@ -195,6 +257,44 @@ export interface OwnerUser {
   role: 'anggota' | 'pengurus' | 'admin' | 'owner' | 'none';
 }
 
+export interface PengurusKasItem {
+  id: number;
+  tanggal: string;
+  tipe: 'MASUK' | 'KELUAR' | string;
+  kategori?: string | null;
+  keterangan: string;
+  nominal: number;
+  created_by?: number | null;
+  created_at?: string;
+}
+
+export interface PengurusUksLogItem {
+  id: number;
+  tanggal: string;
+  waktu?: string | null;
+  nama_pasien: string;
+  kelas_pasien?: string | null;
+  keluhan: string;
+  tindakan: string;
+  obat_digunakan?: string | null;
+  petugas_piket?: string | null;
+  status_penanganan?: string | null;
+  created_at?: string;
+}
+
+export interface PengurusInventarisItem {
+  id: number;
+  kode_barang?: string | null;
+  nama_barang: string;
+  kategori?: string | null;
+  jumlah: number;
+  satuan?: string | null;
+  kondisi: 'BAIK' | 'RUSAK_RINGAN' | 'RUSAK_BERAT' | 'HABIS' | string;
+  lokasi_simpan?: string | null;
+  keterangan?: string | null;
+  updated_at?: string;
+}
+
 // ============================================================
 // API CLIENT
 // ============================================================
@@ -209,6 +309,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ token, portal }),
       auth: false,
+    }),
+
+  // Pengajuan & Riwayat Izin Anggota
+  getMyIzin: () =>
+    apiFetch<{ data: IzinRequestItem[] }>('/api/auth/my-izin'),
+
+  submitIzin: (payload: CreateIzinPayload) =>
+    apiFetch<{ message: string; data: IzinRequestItem }>('/api/auth/izin', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
 
   // Public (butuh JWT)
@@ -335,6 +445,83 @@ export const api = {
     if (params.kelas) qs.set('kelas', params.kelas);
     return apiFetch<{ data: any[] }>(`/api/admin/reports?${qs.toString()}`);
   },
+
+  // Pengurus — Verifikasi Izin, Kas, UKS Logs & Inventaris
+  getPengurusIzin: (status?: string) => {
+    const qs = new URLSearchParams();
+    if (status) qs.set('status', status);
+    const query = qs.toString();
+    return apiFetch<{ data: IzinRequestItem[] }>(
+      `/api/pengurus/izin${query ? `?${query}` : ''}`
+    );
+  },
+
+  verifyPengurusIzin: (
+    id: number,
+    payload: { status: 'APPROVED' | 'REJECTED'; catatan_pengurus?: string }
+  ) =>
+    apiFetch<IzinRequestItem>(`/api/pengurus/izin/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  getPengurusKas: () =>
+    apiFetch<{
+      data: PengurusKasItem[];
+      summary?: { pemasukan: number; pengeluaran: number; saldo: number };
+    }>('/api/pengurus/kas'),
+
+  createPengurusKas: (payload: Omit<PengurusKasItem, 'id' | 'created_at'>) =>
+    apiFetch<PengurusKasItem>('/api/pengurus/kas', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  deletePengurusKas: (id: number) =>
+    apiFetch<{ success: boolean }>(`/api/pengurus/kas/${id}`, {
+      method: 'DELETE',
+    }),
+
+  getPengurusUksLogs: () =>
+    apiFetch<{ data: PengurusUksLogItem[] }>('/api/pengurus/uks-logs'),
+
+  createPengurusUksLog: (
+    payload: Omit<PengurusUksLogItem, 'id' | 'created_at'>
+  ) =>
+    apiFetch<PengurusUksLogItem>('/api/pengurus/uks-logs', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  deletePengurusUksLog: (id: number) =>
+    apiFetch<{ success: boolean }>(`/api/pengurus/uks-logs/${id}`, {
+      method: 'DELETE',
+    }),
+
+  getPengurusInventaris: () =>
+    apiFetch<{ data: PengurusInventarisItem[] }>('/api/pengurus/inventaris'),
+
+  createPengurusInventaris: (
+    payload: Omit<PengurusInventarisItem, 'id' | 'updated_at'>
+  ) =>
+    apiFetch<PengurusInventarisItem>('/api/pengurus/inventaris', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updatePengurusInventaris: (
+    id: number,
+    payload: Partial<Omit<PengurusInventarisItem, 'id' | 'updated_at'>>
+  ) =>
+    apiFetch<PengurusInventarisItem>(`/api/pengurus/inventaris/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+
+  deletePengurusInventaris: (id: number) =>
+    apiFetch<{ success: boolean }>(`/api/pengurus/inventaris/${id}`, {
+      method: 'DELETE',
+    }),
 
   // Owner
   getOwnerUsers: () => apiFetch<OwnerUser[]>('/api/owner/users'),

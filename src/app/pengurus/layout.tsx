@@ -11,6 +11,8 @@ import {
   Wallet,
   HeartPulse,
   Package,
+  ClipboardList,
+  History,
   Menu,
   X,
   ShieldCheck,
@@ -19,6 +21,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getJwt, getUser, clearSession } from '@/lib/auth';
+import { apiFetch } from '@/lib/api';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 const NAV_ITEMS = [
@@ -33,6 +36,13 @@ const NAV_ITEMS = [
     label: 'Data Anggota',
     desc: 'Sekretaris & Keanggotaan',
     icon: Users,
+  },
+  {
+    href: '/pengurus/izin',
+    label: 'Persetujuan Izin',
+    desc: 'Izin & sakit anggota',
+    icon: ClipboardList,
+    badgeKey: 'pendingIzin' as const,
   },
   {
     href: '/pengurus/keuangan',
@@ -52,6 +62,12 @@ const NAV_ITEMS = [
     desc: 'Divisi Perlengkapan',
     icon: Package,
   },
+  {
+    href: '/pengurus/audit-log',
+    label: 'Audit Log',
+    desc: 'Jejak aktivitas sistem',
+    icon: History,
+  },
 ];
 
 export default function PengurusLayout({
@@ -68,6 +84,7 @@ export default function PengurusLayout({
   const [userRole, setUserRole] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [pendingIzinCount, setPendingIzinCount] = useState(0);
 
   // Muat status collapse sidebar desktop dari localStorage
   useEffect(() => {
@@ -122,6 +139,30 @@ export default function PengurusLayout({
     setAuthorized(true);
   }, [router, pathname, isLoginPage]);
 
+  // Ambil jumlah izin PENDING untuk badge notifikasi di sidebar
+  useEffect(() => {
+    if (!authorized || isLoginPage) return;
+
+    let cancelled = false;
+    const fetchPendingCount = async () => {
+      try {
+        const res = await apiFetch<{ data: unknown[] }>(
+          '/api/pengurus/izin?status=PENDING'
+        );
+        if (!cancelled) {
+          setPendingIzinCount(Array.isArray(res.data) ? res.data.length : 0);
+        }
+      } catch {
+        // Abaikan error jaringan latar belakang
+      }
+    };
+
+    fetchPendingCount();
+    return () => {
+      cancelled = true;
+    };
+  }, [authorized, isLoginPage, pathname]);
+
   const handleLogout = () => {
     clearSession();
     router.replace('/pengurus/login');
@@ -131,7 +172,7 @@ export default function PengurusLayout({
 
   if (!authorized) {
     return (
-      <div className="min-h-dvh flex items-center justify-center bg-slate-50 dark:bg-[#1F0709]">
+      <div className="min-h-dvh flex items-center justify-center bg-slate-50 dark:bg-[#230709]">
         <Loader2 className="animate-spin text-[#D32F2F]" size={30} />
       </div>
     );
@@ -221,13 +262,19 @@ export default function PengurusLayout({
             item.href === '/pengurus'
               ? pathname === '/pengurus'
               : pathname.startsWith(item.href);
+          const badgeCount =
+            item.badgeKey === 'pendingIzin' ? pendingIzinCount : 0;
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              title={isMini ? `${item.label} — ${item.desc}` : undefined}
-              className={`group flex items-center rounded-xl transition-all ${
+              title={
+                isMini
+                  ? `${item.label}${badgeCount > 0 ? ` (${badgeCount} pending)` : ''} — ${item.desc}`
+                  : undefined
+              }
+              className={`group relative flex items-center rounded-xl transition-all ${
                 isMini ? 'justify-center p-2.5' : 'gap-3 px-3.5 py-2.5'
               } ${
                 active
@@ -236,26 +283,46 @@ export default function PengurusLayout({
               }`}
             >
               <div
-                className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+                className={`relative p-1.5 rounded-lg transition-colors shrink-0 ${
                   active
                     ? 'bg-white/20 text-white'
                     : 'bg-slate-100 dark:bg-red-950 text-[#D32F2F] group-hover:bg-red-100'
                 }`}
               >
                 <Icon size={17} />
+                {isMini && badgeCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-amber-500 text-[9px] font-extrabold text-white flex items-center justify-center shadow">
+                    {badgeCount}
+                  </span>
+                )}
               </div>
               {!isMini && (
-                <div className="min-w-0">
-                  <p className="text-xs font-extrabold truncate">{item.label}</p>
-                  <p
-                    className={`text-[10px] truncate ${
-                      active
-                        ? 'text-white/80'
-                        : 'text-slate-400 dark:text-red-200/60'
-                    }`}
-                  >
-                    {item.desc}
-                  </p>
+                <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-extrabold truncate">
+                      {item.label}
+                    </p>
+                    <p
+                      className={`text-[10px] truncate ${
+                        active
+                          ? 'text-white/80'
+                          : 'text-slate-400 dark:text-red-200/60'
+                      }`}
+                    >
+                      {item.desc}
+                    </p>
+                  </div>
+                  {badgeCount > 0 && (
+                    <span
+                      className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                        active
+                          ? 'bg-white text-[#D32F2F]'
+                          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                      }`}
+                    >
+                      {badgeCount}
+                    </span>
+                  )}
                 </div>
               )}
             </Link>
@@ -320,17 +387,22 @@ export default function PengurusLayout({
   );
 
   return (
-    <div className="min-h-dvh bg-slate-50 dark:bg-[#1F0709] text-slate-900 dark:text-red-50 flex flex-col lg:flex-row">
+    <div className="min-h-dvh bg-slate-50 dark:bg-[#230709] text-slate-900 dark:text-red-50 flex flex-col lg:flex-row">
       {/* Topbar Sticky khusus Mobile & Tablet (< lg) */}
-      <header className="lg:hidden sticky top-0 z-30 bg-white/95 dark:bg-[#2A090C]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-red-900/60 px-4 py-3 flex items-center justify-between">
+      <header className="lg:hidden sticky top-0 z-30 bg-white/95 dark:bg-[#330C0F]/95 backdrop-blur-md border-b border-slate-200/80 dark:border-red-900/60 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={() => setMobileMenuOpen(true)}
-            className="p-2 rounded-xl bg-red-50 dark:bg-red-950 text-[#D32F2F] hover:bg-red-100 transition"
+            className="relative p-2 rounded-xl bg-red-50 dark:bg-red-950 text-[#D32F2F] hover:bg-red-100 transition"
             aria-label="Buka menu sidebar"
           >
             <Menu size={20} />
+            {pendingIzinCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-amber-500 text-[9px] font-extrabold text-white flex items-center justify-center">
+                {pendingIzinCount}
+              </span>
+            )}
           </button>
           <div className="flex items-center gap-2">
             <img
@@ -358,7 +430,7 @@ export default function PengurusLayout({
             className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="relative w-72 max-w-[82vw] bg-white dark:bg-[#2A090C] h-full shadow-2xl border-r border-slate-200 dark:border-red-900/60 z-10">
+          <aside className="relative w-72 max-w-[82vw] bg-white dark:bg-[#330C0F] h-full shadow-2xl border-r border-slate-200 dark:border-red-900/60 z-10">
             <SidebarContent isMini={false} />
           </aside>
         </div>
@@ -366,7 +438,7 @@ export default function PengurusLayout({
 
       {/* Sidebar Sticky Desktop (>= lg) dengan transisi lebar */}
       <aside
-        className={`hidden lg:block lg:sticky lg:top-0 lg:h-dvh bg-white dark:bg-[#2A090C] border-r border-slate-200/80 dark:border-red-900/60 shrink-0 transition-all duration-200 ${
+        className={`hidden lg:block lg:sticky lg:top-0 lg:h-dvh bg-white dark:bg-[#330C0F] border-r border-slate-200/80 dark:border-red-900/60 shrink-0 transition-all duration-200 ${
           collapsed ? 'lg:w-20' : 'lg:w-68'
         }`}
       >

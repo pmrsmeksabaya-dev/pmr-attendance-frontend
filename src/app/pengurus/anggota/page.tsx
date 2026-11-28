@@ -1,9 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Search, Edit3, X, Save, Loader2, AlertTriangle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Search,
+  Edit3,
+  X,
+  Save,
+  Loader2,
+  AlertTriangle,
+  Download,
+  Users,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api';
+import { exportBukuIndukMembersExcel } from '@/lib/export-members-excel';
 
 interface MemberFull {
   id: number;
@@ -11,6 +21,7 @@ interface MemberFull {
   nisn: string | null;
   nama: string;
   kelas: string;
+  jurusan: string | null;
   jenis_kelamin: 'L' | 'P';
   nomor_whatsapp: string;
   angkatan: string;
@@ -24,11 +35,14 @@ interface MemberFull {
   tingkatan_pmr: string | null;
   alergi: string | null;
   persetujuan_orang_tua: boolean;
+  jabatan?: string | null;
 }
 
 export default function PengurusAnggotaPage() {
   const [members, setMembers] = useState<MemberFull[]>([]);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'AKTIF' | 'NONAKTIF' | 'ALUMNI'>('ALL');
+  const [goldarFilter, setGoldarFilter] = useState<'ALL' | 'A' | 'B' | 'AB' | 'O'>('ALL');
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<MemberFull | null>(null);
   const [saving, setSaving] = useState(false);
@@ -51,12 +65,24 @@ export default function PengurusAnggotaPage() {
     loadData();
   }, []);
 
+  const filteredMembers = useMemo(() => {
+    return members.filter((m) => {
+      const matchStatus =
+        statusFilter === 'ALL' ||
+        (m.status_anggota || '').toUpperCase() === statusFilter;
+      const matchGoldar =
+        goldarFilter === 'ALL' ||
+        (m.golongan_darah || '').toUpperCase().startsWith(goldarFilter);
+      return matchStatus && matchGoldar;
+    });
+  }, [members, statusFilter, goldarFilter]);
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editing) return;
     setSaving(true);
     try {
-      await apiFetch(`/api/pengurus/members/${editing.id}`, {
+      await apiFetch<{ data: MemberFull }>(`/api/pengurus/members/${editing.id}`, {
         method: 'PATCH',
         body: JSON.stringify(editing),
       });
@@ -64,14 +90,35 @@ export default function PengurusAnggotaPage() {
       setEditing(null);
       loadData(search);
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(e.message || 'Gagal menyimpan biodata.');
     } finally {
       setSaving(false);
     }
   };
 
+  const handleExportExcel = () => {
+    if (filteredMembers.length === 0) {
+      toast.error('Tidak ada data anggota untuk diekspor.');
+      return;
+    }
+
+    const activeFilters: string[] = [];
+    if (statusFilter !== 'ALL') activeFilters.push(`Status: ${statusFilter}`);
+    if (goldarFilter !== 'ALL') activeFilters.push(`Goldar: ${goldarFilter}`);
+    if (search.trim()) activeFilters.push(`Cari: "${search.trim()}"`);
+
+    exportBukuIndukMembersExcel(filteredMembers, {
+      unitName: 'PMR Wira Unit SMKN 1 Pringgabaya',
+      filterLabel:
+        activeFilters.length > 0 ? activeFilters.join(' • ') : undefined,
+    });
+
+    toast.success('Buku Induk Anggota (.xlsx) berhasil diunduh.');
+  };
+
   return (
     <div className="space-y-5">
+      {/* Header & Ekspor Excel */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold">
@@ -82,12 +129,57 @@ export default function PengurusAnggotaPage() {
             dan izin orang tua.
           </p>
         </div>
+
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-red-900/60 bg-white dark:bg-[#330C0F] hover:bg-red-50 dark:hover:bg-red-950/70 text-xs font-bold shadow-sm transition self-start sm:self-auto"
+        >
+          <Download size={15} className="text-[#D32F2F]" />
+          <span>Ekspor Buku Induk (.xlsx)</span>
+        </button>
+      </div>
+
+      {/* Filter Status, Goldar & Search Bar */}
+      <div className="bg-white dark:bg-[#330C0F] p-4 rounded-2xl border border-slate-200/80 dark:border-red-900/60 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/70 text-[#D32F2F] dark:text-red-200 font-extrabold">
+            <Users size={13} />
+            {filteredMembers.length} Anggota
+          </span>
+
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            aria-label="Filter Status Anggota"
+            className="px-3 py-1.5 rounded-lg border bg-slate-50 dark:bg-red-950/50 dark:border-red-900 font-bold"
+          >
+            <option value="ALL">Semua Status</option>
+            <option value="AKTIF">AKTIF</option>
+            <option value="NONAKTIF">NONAKTIF</option>
+            <option value="ALUMNI">ALUMNI</option>
+          </select>
+
+          <select
+            value={goldarFilter}
+            onChange={(e) => setGoldarFilter(e.target.value as any)}
+            aria-label="Filter Golongan Darah"
+            className="px-3 py-1.5 rounded-lg border bg-slate-50 dark:bg-red-950/50 dark:border-red-900 font-bold"
+          >
+            <option value="ALL">Semua Goldar</option>
+            <option value="A">Goldar A</option>
+            <option value="B">Goldar B</option>
+            <option value="AB">Goldar AB</option>
+            <option value="O">Goldar O</option>
+          </select>
+        </div>
+
         <form
           onSubmit={(e) => {
             e.preventDefault();
             loadData(search);
           }}
-          className="relative w-full sm:w-72"
+          className="relative w-full lg:w-72"
         >
           <Search
             size={15}
@@ -98,14 +190,20 @@ export default function PengurusAnggotaPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Cari NIS, NISN, Nama, Kelas..."
-            className="w-full pl-9 pr-3 py-2 rounded-xl bg-white dark:bg-[#330C0F] border border-slate-200 dark:border-red-900/70 text-xs focus:outline-none focus:ring-2 focus:ring-[#D32F2F]"
+            className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-red-950/50 border border-slate-200 dark:border-red-900/70 text-xs focus:outline-none focus:ring-2 focus:ring-[#D32F2F]"
           />
         </form>
       </div>
+
+      {/* Tabel Buku Induk */}
       <div className="bg-white dark:bg-[#330C0F] rounded-2xl border border-slate-200/80 dark:border-red-900/60 overflow-hidden">
         {loading ? (
           <div className="py-12 text-center">
             <Loader2 className="animate-spin mx-auto text-[#D32F2F]" size={26} />
+          </div>
+        ) : filteredMembers.length === 0 ? (
+          <div className="py-12 text-center text-xs text-slate-500 dark:text-red-200/75">
+            Tidak ada data anggota yang sesuai filter.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -115,7 +213,7 @@ export default function PengurusAnggotaPage() {
                   <th className="px-3 py-3">Aksi</th>
                   <th className="px-3 py-3">NIS / NISN</th>
                   <th className="px-3 py-3">Nama Lengkap</th>
-                  <th className="px-3 py-3">Kelas</th>
+                  <th className="px-3 py-3">Kelas &amp; Jurusan</th>
                   <th className="px-3 py-3">L/P</th>
                   <th className="px-3 py-3">No. WA</th>
                   <th className="px-3 py-3">Angkatan</th>
@@ -130,7 +228,7 @@ export default function PengurusAnggotaPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-red-900/40">
-                {members.map((m) => (
+                {filteredMembers.map((m) => (
                   <tr
                     key={m.id}
                     className="hover:bg-slate-50/80 dark:hover:bg-red-950/30"
@@ -151,7 +249,14 @@ export default function PengurusAnggotaPage() {
                       </div>
                     </td>
                     <td className="px-3 py-2.5 font-bold">{m.nama}</td>
-                    <td className="px-3 py-2.5">{m.kelas}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="font-semibold">{m.kelas}</div>
+                      {m.jurusan && m.jurusan !== '-' && (
+                        <div className="text-[10px] text-slate-400">
+                          {m.jurusan}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-2.5 font-bold">{m.jenis_kelamin}</td>
                     <td className="px-3 py-2.5 font-mono">{m.nomor_whatsapp}</td>
                     <td className="px-3 py-2.5">{m.angkatan}</td>
@@ -176,7 +281,7 @@ export default function PengurusAnggotaPage() {
                     <td className="px-3 py-2.5">{m.tingkatan_pmr || 'Wira'}</td>
                     <td className="px-3 py-2.5">
                       {m.alergi ? (
-                        <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md font-semibold">
+                        <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 dark:bg-amber-950/70 dark:text-amber-300 px-2 py-0.5 rounded-md font-semibold">
                           <AlertTriangle size={11} /> {m.alergi}
                         </span>
                       ) : (
@@ -187,8 +292,8 @@ export default function PengurusAnggotaPage() {
                       <span
                         className={`px-2 py-0.5 rounded-full font-extrabold text-[10px] ${
                           m.persetujuan_orang_tua
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-rose-50 text-rose-700'
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300'
+                            : 'bg-rose-50 text-rose-700 dark:bg-rose-950/70 dark:text-rose-300'
                         }`}
                       >
                         {m.persetujuan_orang_tua ? 'Ya' : 'Tidak'}
@@ -198,8 +303,8 @@ export default function PengurusAnggotaPage() {
                       <span
                         className={`px-2 py-0.5 rounded-full font-extrabold text-[10px] ${
                           m.status_anggota === 'AKTIF'
-                            ? 'bg-emerald-50 text-emerald-700'
-                            : 'bg-slate-100 text-slate-600'
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300'
+                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
                         }`}
                       >
                         {m.status_anggota}
@@ -212,11 +317,13 @@ export default function PengurusAnggotaPage() {
           </div>
         )}
       </div>
+
+      {/* Modal Edit Biodata */}
       {editing && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <form
             onSubmit={handleSave}
-            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-[#2A090C] rounded-3xl p-6 space-y-4 border border-slate-200 dark:border-red-900"
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-[#230709] rounded-3xl p-6 space-y-4 border border-slate-200 dark:border-red-900"
           >
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-red-900/60 pb-3">
               <h2 className="font-extrabold text-base">
@@ -268,6 +375,17 @@ export default function PengurusAnggotaPage() {
                   onChange={(e) =>
                     setEditing({ ...editing, kelas: e.target.value })
                   }
+                  className="w-full px-3 py-2 rounded-xl border bg-slate-50 dark:bg-red-950/50 dark:border-red-900"
+                />
+              </div>
+              <div>
+                <label className="font-bold block mb-1">Jurusan</label>
+                <input
+                  value={editing.jurusan || ''}
+                  onChange={(e) =>
+                    setEditing({ ...editing, jurusan: e.target.value })
+                  }
+                  placeholder="Misal: TKJ, RPL, AKL"
                   className="w-full px-3 py-2 rounded-xl border bg-slate-50 dark:bg-red-950/50 dark:border-red-900"
                 />
               </div>

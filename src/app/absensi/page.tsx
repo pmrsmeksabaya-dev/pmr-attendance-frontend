@@ -9,16 +9,19 @@ import {
   QrCode,
   LogOut,
   ShieldCheck,
-  Users,
+  ClipboardList,
+  ShieldAlert,
   ChevronRight,
   Clock,
   Sparkles,
   ArrowUpRight,
+  FilePlus2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { api, ProfileResponse, ApiError } from '@/lib/api';
 import { isLoggedIn, getUser, clearSession } from '@/lib/auth';
 import { formatWitaDate } from '@/lib/time-client';
+import { formatKelasJurusan } from '@/lib/jurusan';
 
 const ROLE_BADGES: Record<string, { label: string; style: string }> = {
   owner: {
@@ -83,25 +86,31 @@ export default function BerandaPage() {
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-52 bg-slate-200/80 rounded-3xl" />
-        <div className="grid grid-cols-2 gap-3.5">
-          <div className="h-32 bg-slate-200/80 rounded-2xl" />
-          <div className="h-32 bg-white rounded-2xl border border-slate-100" />
+        <div className="h-52 bg-slate-200/80 dark:bg-red-950/60 rounded-3xl" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+          <div className="col-span-2 sm:col-span-1 h-32 bg-white dark:bg-[#330C0F] rounded-2xl border border-slate-100 dark:border-red-900/50" />
+          <div className="h-32 bg-white dark:bg-[#330C0F] rounded-2xl border border-slate-100 dark:border-red-900/50" />
+          <div className="h-32 bg-white dark:bg-[#330C0F] rounded-2xl border border-slate-100 dark:border-red-900/50" />
         </div>
-        <div className="h-24 bg-white rounded-2xl border border-slate-100" />
+        <div className="h-24 bg-white dark:bg-[#330C0F] rounded-2xl border border-slate-100 dark:border-red-900/50" />
       </div>
     );
   }
 
   const currentRole = (user?.role || 'anggota').toLowerCase();
   const badge = ROLE_BADGES[currentRole] || ROLE_BADGES.anggota;
-  const isStaff = ['pengurus', 'admin', 'owner'].includes(currentRole);
+  const canAccessPengurus = ['pengurus', 'admin', 'owner'].includes(currentRole);
+  const canAccessAdmin = ['admin', 'owner'].includes(currentRole);
+
+  const kelasJurusanLabel = profile
+    ? formatKelasJurusan(profile.kelas, profile.jurusan)
+    : '';
 
   return (
     <div className="space-y-5">
       {/* HERO CARD: Digital Member ID + Live WITA Clock */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-pmr-red via-red-600 to-rose-900 p-6 text-white shadow-xl shadow-red-950/20 ring-1 ring-white/15">
-        {/* Dekorasi Ambient Glow & Grid */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#D32F2F] via-red-700 to-red-950 p-6 text-white shadow-xl shadow-red-950/25 ring-1 ring-white/15">
+        {/* Dekorasi Ambient Glow */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -top-16 -right-16 h-48 w-48 rounded-full bg-white/15 blur-2xl"
@@ -113,7 +122,7 @@ export default function BerandaPage() {
 
         {/* Baris Atas: Role Badge & Tombol Logout */}
         <div className="relative flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border backdrop-blur-md ${badge.style}`}
             >
@@ -128,8 +137,9 @@ export default function BerandaPage() {
           </div>
 
           <button
+            type="button"
             onClick={handleLogout}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-medium text-white/90 ring-1 ring-white/20 transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-semibold text-white/95 ring-1 ring-white/20 transition-all shrink-0"
             title="Keluar dari akun"
             aria-label="Logout"
           >
@@ -141,14 +151,14 @@ export default function BerandaPage() {
         {/* Identitas Anggota */}
         <div className="relative mt-4">
           <p className="text-xs font-medium text-white/80">
-            Palang Merah Remaja • SMKN 1 Pringgabaya
+            Palang Merah Remaja Wira • SMKN 1 Pringgabaya
           </p>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white mt-0.5 truncate">
             {profile?.nama ?? user?.nama ?? 'Anggota PMR'}
           </h2>
           {profile && (
             <p className="text-xs sm:text-sm text-white/90 font-medium mt-1">
-              {profile.kelas} • {profile.jurusan}
+              {kelasJurusanLabel}
               {profile.jabatan ? ` — ${profile.jabatan}` : ''}
             </p>
           )}
@@ -185,97 +195,153 @@ export default function BerandaPage() {
       </section>
 
       {/* MENU AKSI UTAMA */}
-      <section className="grid grid-cols-2 gap-3.5">
-        {/* Tombol Scan QR (Primary Action) */}
+      <section className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+        {/* Tombol Scan QR */}
         <Link
           href="/absensi/scan"
-          className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-5 text-white shadow-lg shadow-slate-900/15 hover:shadow-xl active:scale-[0.98] transition-all"
+          className="col-span-2 sm:col-span-1 group rounded-2xl bg-white/95 dark:bg-[#330C0F] backdrop-blur-sm p-5 shadow-sm border border-slate-200/80 dark:border-red-900/60 hover:border-[#D32F2F]/60 dark:hover:border-red-700 hover:shadow-md active:scale-[0.98] transition-all"
         >
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out bg-gradient-to-r from-transparent via-white/10 to-transparent"
-          />
           <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pmr-red to-red-600 flex items-center justify-center shadow-md shadow-red-600/30 group-hover:scale-105 transition-transform">
-              <QrCode size={25} className="text-white" />
+            <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/80 border border-red-100 dark:border-red-800/60 flex items-center justify-center text-[#D32F2F] dark:text-red-300 group-hover:bg-[#D32F2F] group-hover:text-white transition-colors">
+              <QrCode size={24} />
             </div>
             <ArrowUpRight
               size={18}
-              className="text-slate-400 group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all"
+              className="text-slate-300 dark:text-red-200/40 group-hover:text-[#D32F2F] dark:group-hover:text-red-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all"
             />
           </div>
           <div className="mt-4">
-            <p className="font-bold text-base tracking-tight">Scan QR</p>
-            <p className="text-xs text-slate-300 mt-0.5">Catat kehadiran</p>
+            <p className="font-bold text-base tracking-tight text-slate-900 dark:text-white">
+              Scan QR
+            </p>
+            <p className="text-xs text-slate-500 dark:text-red-200/75 mt-0.5">
+              Catat kehadiran sesi
+            </p>
           </div>
         </Link>
 
         {/* Tombol Riwayat */}
         <Link
           href="/absensi/history"
-          className="group rounded-2xl bg-white/95 backdrop-blur-sm p-5 shadow-sm border border-slate-200/80 hover:border-pmr-red/60 hover:shadow-md active:scale-[0.98] transition-all"
+          className="group rounded-2xl bg-white/95 dark:bg-[#330C0F] backdrop-blur-sm p-5 shadow-sm border border-slate-200/80 dark:border-red-900/60 hover:border-[#D32F2F]/60 dark:hover:border-red-700 hover:shadow-md active:scale-[0.98] transition-all"
         >
           <div className="flex items-start justify-between">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 border border-red-100 flex items-center justify-center text-pmr-red group-hover:bg-pmr-red group-hover:text-white transition-colors">
-              <History size={25} />
+            <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/80 border border-red-100 dark:border-red-800/60 flex items-center justify-center text-[#D32F2F] dark:text-red-300 group-hover:bg-[#D32F2F] group-hover:text-white transition-colors">
+              <History size={24} />
             </div>
             <ArrowUpRight
               size={18}
-              className="text-slate-300 group-hover:text-pmr-red group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all"
+              className="text-slate-300 dark:text-red-200/40 group-hover:text-[#D32F2F] dark:group-hover:text-red-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all"
             />
           </div>
           <div className="mt-4">
-            <p className="font-bold text-base tracking-tight text-slate-900">
+            <p className="font-bold text-base tracking-tight text-slate-900 dark:text-white">
               Riwayat
             </p>
-            <p className="text-xs text-slate-500 mt-0.5">Rekap absensi saya</p>
+            <p className="text-xs text-slate-500 dark:text-red-200/75 mt-0.5">
+              Rekap absensi saya
+            </p>
+          </div>
+        </Link>
+
+        {/* Tombol Ajukan Izin */}
+        <Link
+          href="/absensi/izin"
+          className="group rounded-2xl bg-white/95 dark:bg-[#330C0F] backdrop-blur-sm p-5 shadow-sm border border-slate-200/80 dark:border-red-900/60 hover:border-[#D32F2F]/60 dark:hover:border-red-700 hover:shadow-md active:scale-[0.98] transition-all"
+        >
+          <div className="flex items-start justify-between">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 dark:bg-red-950/80 border border-red-100 dark:border-red-800/60 flex items-center justify-center text-[#D32F2F] dark:text-red-300 group-hover:bg-[#D32F2F] group-hover:text-white transition-colors">
+              <FilePlus2 size={24} />
+            </div>
+            <ArrowUpRight
+              size={18}
+              className="text-slate-300 dark:text-red-200/40 group-hover:text-[#D32F2F] dark:group-hover:text-red-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all"
+            />
+          </div>
+          <div className="mt-4">
+            <p className="font-bold text-base tracking-tight text-slate-900 dark:text-white">
+              Ajukan Izin
+            </p>
+            <p className="text-xs text-slate-500 dark:text-red-200/75 mt-0.5">
+              Izin &amp; sakit latihan
+            </p>
           </div>
         </Link>
       </section>
 
-      {/* PANEL STAFF (PENGURUS / ADMIN / OWNER) */}
-      {isStaff && (
-        <Link
-          href="/absensi/admin"
-          className="group relative overflow-hidden rounded-2xl bg-white/95 backdrop-blur-sm p-4 shadow-sm border border-slate-200/80 hover:border-pmr-red/70 hover:shadow-md active:scale-[0.99] transition-all flex items-center justify-between gap-3"
-        >
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-50 to-red-50 border border-red-200/60 flex items-center justify-center text-pmr-red shrink-0 group-hover:scale-105 transition-transform">
-              <Users size={21} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="font-bold text-slate-900 text-sm truncate">
-                  Panel{' '}
-                  {currentRole === 'owner'
-                    ? 'Owner & Admin'
-                    : 'Pengurus & Admin'}
-                </p>
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-red-50 text-pmr-red text-[10px] font-bold">
-                  <Sparkles size={10} />
-                  Staff
-                </span>
+      {/* PINTASAN PORTAL PENGURUS & ADMIN */}
+      {canAccessPengurus && (
+        <section className="space-y-2.5">
+          <Link
+            href="/pengurus"
+            className="group relative overflow-hidden rounded-2xl bg-white/95 dark:bg-[#330C0F] backdrop-blur-sm p-4 shadow-sm border border-slate-200/80 dark:border-red-900/60 hover:border-[#D32F2F]/70 dark:hover:border-red-700 hover:shadow-md active:scale-[0.99] transition-all flex items-center justify-between gap-3"
+          >
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-sky-50 to-red-50 dark:from-red-950 dark:to-rose-950 border border-red-200/60 dark:border-red-800/60 flex items-center justify-center text-[#D32F2F] dark:text-red-300 shrink-0 group-hover:scale-105 transition-transform">
+                <ClipboardList size={21} />
               </div>
-              <p className="text-xs text-slate-500 truncate mt-0.5">
-                Kelola data anggota
-                {currentRole === 'owner' ? ' & hak akses role' : ''}
-              </p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                    Portal Pengurus PMR
+                  </p>
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-red-50 dark:bg-red-950 text-[#D32F2F] dark:text-red-300 text-[10px] font-bold shrink-0">
+                    <Sparkles size={10} />
+                    Operasional
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-red-200/75 truncate mt-0.5">
+                  Kelola sesi QR, verifikasi izin, kas, inventaris &amp; log UKS
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-slate-50 group-hover:bg-pmr-red text-slate-400 group-hover:text-white flex items-center justify-center transition-colors shrink-0">
-            <ChevronRight size={17} />
-          </div>
-        </Link>
+            <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-red-950 group-hover:bg-[#D32F2F] text-slate-400 dark:text-red-200/70 group-hover:text-white flex items-center justify-center transition-colors shrink-0">
+              <ChevronRight size={17} />
+            </div>
+          </Link>
+
+          {canAccessAdmin && (
+            <Link
+              href="/admin"
+              className="group relative overflow-hidden rounded-2xl bg-white/95 dark:bg-[#330C0F] backdrop-blur-sm p-4 shadow-sm border border-slate-200/80 dark:border-red-900/60 hover:border-[#D32F2F]/70 dark:hover:border-red-700 hover:shadow-md active:scale-[0.99] transition-all flex items-center justify-between gap-3"
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-50 to-red-50 dark:from-red-950 dark:to-rose-950 border border-red-200/60 dark:border-red-800/60 flex items-center justify-center text-[#D32F2F] dark:text-red-300 shrink-0 group-hover:scale-105 transition-transform">
+                  <ShieldAlert size={21} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                      Portal Admin &amp; Pembina
+                    </p>
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/70 text-amber-700 dark:text-amber-300 text-[10px] font-bold shrink-0">
+                      <ShieldCheck size={10} />
+                      {currentRole === 'owner' ? 'Owner' : 'Admin'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-red-200/75 truncate mt-0.5">
+                    Manajemen data anggota
+                    {currentRole === 'owner' ? ', hak akses role' : ''} &amp; rekap
+                    sistem
+                  </p>
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-red-950 group-hover:bg-[#D32F2F] text-slate-400 dark:text-red-200/70 group-hover:text-white flex items-center justify-center transition-colors shrink-0">
+                <ChevronRight size={17} />
+              </div>
+            </Link>
+          )}
+        </section>
       )}
 
       {/* PANDUAN SINGKAT */}
-      <section className="rounded-2xl bg-white/85 backdrop-blur-sm border border-slate-200/70 p-4 shadow-2xs">
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+      <section className="rounded-2xl bg-white/90 dark:bg-[#330C0F] backdrop-blur-sm border border-slate-200/75 dark:border-red-900/60 p-4 sm:p-5 shadow-2xs">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400 dark:text-red-200/60 mb-3">
           Cara Melakukan Absensi
         </p>
-        <div className="space-y-2.5 text-xs text-slate-700">
+        <div className="space-y-2.5 text-xs text-slate-700 dark:text-red-100/85">
           <div className="flex items-center gap-2.5">
-            <span className="w-5 h-5 rounded-full bg-red-50 text-pmr-red font-bold flex items-center justify-center shrink-0 text-[11px] ring-1 ring-red-200/70">
+            <span className="w-5 h-5 rounded-full bg-red-50 dark:bg-red-950 text-[#D32F2F] dark:text-red-300 font-bold flex items-center justify-center shrink-0 text-[11px] ring-1 ring-red-200/70 dark:ring-red-800/60">
               1
             </span>
             <span>
@@ -283,7 +349,7 @@ export default function BerandaPage() {
             </span>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="w-5 h-5 rounded-full bg-red-50 text-pmr-red font-bold flex items-center justify-center shrink-0 text-[11px] ring-1 ring-red-200/70">
+            <span className="w-5 h-5 rounded-full bg-red-50 dark:bg-red-950 text-[#D32F2F] dark:text-red-300 font-bold flex items-center justify-center shrink-0 text-[11px] ring-1 ring-red-200/70 dark:ring-red-800/60">
               2
             </span>
             <span>
@@ -291,7 +357,7 @@ export default function BerandaPage() {
             </span>
           </div>
           <div className="flex items-center gap-2.5">
-            <span className="w-5 h-5 rounded-full bg-red-50 text-pmr-red font-bold flex items-center justify-center shrink-0 text-[11px] ring-1 ring-red-200/70">
+            <span className="w-5 h-5 rounded-full bg-red-50 dark:bg-red-950 text-[#D32F2F] dark:text-red-300 font-bold flex items-center justify-center shrink-0 text-[11px] ring-1 ring-red-200/70 dark:ring-red-800/60">
               3
             </span>
             <span>Kehadiran dan status waktu tercatat otomatis ke sistem</span>
